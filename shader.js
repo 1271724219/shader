@@ -104,13 +104,49 @@ function main() {
   //   0, 0.5,
   //   0.7, 0.5,
   // ];
-  const vertexData = [
-    0, 0, 1, 0, 0, 1,
-    0.7, 0, 0, 1, 0, 1,
-    0, 0.5, 0, 0, 1, 1,
-    0.7, 0.5, 1, 0.5, 0, 1
+  // const vertexData = [
+  //   0, 0, 1, 0, 0, 1,
+  //   0.7, 0, 0, 1, 0, 1,
+  //   0, 0.5, 0, 0, 1, 1,
+  //   0.7, 0.5, 1, 0.5, 0, 1
+  // ];
+  const positions = [
+    0, 0,
+    0.7, 0,
+    0, 0.5,
+    0.7, 0.5,
+  ];
+  const colors = [
+    255, 0, 0, 255,
+    0, 255, 0, 255,
+    0, 0, 255, 255,
+    255, 127, 0, 255
   ];
   gl.enable(gl.CULL_FACE);//开启背面剔除
+  const arrayBuffer = new ArrayBuffer(positions.length * Float32Array.BYTES_PER_ELEMENT + colors.length);//设置字节长度
+  const positionBuffer = new Float32Array(arrayBuffer);
+  const colorBuffer = new Uint8Array(arrayBuffer);
+  // 当前顶点属性结构方式是 pos + color
+  // 按 float 32 分布 pos（2）+ color（1）
+  // 按子节分布 pos（2x4）+ color（4）
+  let offset = 0;
+  for (let i = 0; i < positions.length; i += 2) {
+    // 位置时按每浮点数填充
+    positionBuffer[offset] = positions[i];
+    positionBuffer[offset + 1] = positions[i + 1];
+    offset += 3;
+  }
+
+  offset = 8;
+  for (let j = 0; j < colors.length; j += 4) {
+    // 颜色值时按每子节填充
+    colorBuffer[offset] = colors[j];
+    colorBuffer[offset + 1] = colors[j + 1];
+    colorBuffer[offset + 2] = colors[j + 2];
+    colorBuffer[offset + 3] = colors[j + 3];
+    // 一个 stride，2 个 position 的 float，加 4 个 unit8，2x4 + 4 = 12
+    offset += 12;
+  }
   // 4. 创建顶点缓冲对象
   /**
    * 在顶点着色器阶段会在GPU上创建内存存储我们的顶点数据,
@@ -126,6 +162,7 @@ function main() {
   const vertexBuffer = gl.createBuffer();
   // 5.将顶点缓冲对象绑定到 gl 的 ARRAY_BUFFER 字段上。
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, arrayBuffer, gl.STATIC_DRAW)//传入数据
   // 定义顶点索引
   const indices = [
     0, 1, 2,
@@ -146,7 +183,7 @@ function main() {
    * gl.DYNAMIC_DRAW：数据会被改变很多。(动态更新)
    * gl.STREAM_DRAW ：数据每次绘制时都会改变
    */
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexData), gl.STATIC_DRAW)
+  // gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexData), gl.STATIC_DRAW)
 
   //    步骤三：定义片元着色器
   // 1.同顶点着色器操作类似
@@ -226,8 +263,8 @@ function main() {
    * 第六个参数（offset）：表示属性在缓冲区中每间隔的偏移值，单位是字节（因为我们是连续的数据，所以这里偏移值还是0）
    * 
    */
-  gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 24, 0);
-  gl.vertexAttribPointer(colorAttributeLocation, 2, gl.FLOAT, false, 24, 8);
+  gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 12, 0);
+  gl.vertexAttribPointer(colorAttributeLocation, 4, gl.UNSIGNED_BYTE, true, 12, 8);
 
   // const vertexColorLocation = gl.getUniformLocation(program, 'u_color');//获取uniform它的索引值
   // // gl.uniform4f(vertexColorLocation, 0, 0, 1, 1);//给uniform赋值 设置为纯蓝色
