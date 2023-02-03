@@ -58,6 +58,13 @@ function createProgram(gl, vertexShader, fragmentShader) {
   gl.deleteProgram(program);
 }
 function main() {
+  const image = new Image();//创建一个img类
+  image.src = 'logo.png'//写入路径
+  image.onload = function () {//加载
+    render(image)
+  }
+}
+function render(image) {
   // 步骤一：获取 gl
   /**
    *      WebGL大多数元素都是可以通过状态来描述，状态是通过gl来调用切换，
@@ -85,13 +92,16 @@ function main() {
   const vertexSource = `
   // 接收顶点位置数据 （需将它传递给gl内置变量gl_Position）
   attribute vec2 a_position;
+  attribute vec2 a_uv;//定义顶点输入属性
   attribute vec4 a_color;//首先顶点属性要增加一个颜色输入
 
   varying vec4 v_color;//增加一个输出,为了给片元着色器
+  varying vec2 v_uv;//定义顶点着色器输出
 
   // 着色器入口函数
   void main() {
       v_color = a_color;//赋值
+      v_uv = a_uv;//赋值
       // gl_Position 接收的就是一个 vec4，因此需要转换 （vec2->vec4）
       gl_Position = vec4(a_position, 0.0, 1.0);//vec4的x,y来自于a_position,由于没有深度z为0，w分量为1
   }`;
@@ -110,12 +120,18 @@ function main() {
   //   0, 0.5, 0, 0, 1, 1,
   //   0.7, 0.5, 1, 0.5, 0, 1
   // ];
-  const positions = [
-    0, 0,
-    0.7, 0,
-    0, 0.5,
-    0.7, 0.5,
-  ];
+  // const positions = [
+  //   0, 0,
+  //   0.7, 0,
+  //   0, 0.5,
+  //   0.7, 0.5,
+  // ];
+  const vertexPosUv = [//每行前两个数据是矩形的下角对应的uv坐标的左下角，后两个是右下角，因为希望整张纹理都贴到矩形上，因此选的是可选范围的最大值
+    0, 0, 0, 0,
+    0.7, 0, 1, 0,
+    0, 0.5, 0, 1,
+    0.7, 0.5, 1, 1
+  ]
   const colors = [
     255, 0, 0, 255,
     0, 255, 0, 255,
@@ -162,7 +178,7 @@ function main() {
   const vertexBuffer = gl.createBuffer();
   // 5.将顶点缓冲对象绑定到 gl 的 ARRAY_BUFFER 字段上。
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW)//传入数据
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexPosUv), gl.STATIC_DRAW)//传入数据
   // gl.bufferData(gl.ARRAY_BUFFER, arrayBuffer, gl.STATIC_DRAW)//传入数据
 
   const colorBuffer = gl.createBuffer();
@@ -201,7 +217,9 @@ function main() {
 
     // 定义一个颜色Uniform，用来接收我们传入的颜色值
     // uniform vec4 u_color;
+    uniform sampler2D mainTexture;//定义2D图像unifrom
 
+    varying vec2 v_uv;
     varying vec4 v_color;//增加一个输出,为了给片元着色器
     
     // 着色器入口函数
@@ -210,7 +228,8 @@ function main() {
         // 这里的四个分量分别代表红（r）、绿（g）、蓝（b）和透明度（alpha）
         // 颜色数值取归一化值。最终绘制的其实就是 [255, 0, 127.5, 255]
         // gl_FragColor = u_color;//gl_FragColor为gl内置变量
-        gl_FragColor = v_color;//gl_FragColor为gl内置变量
+        // gl_FragColor = v_color;//gl_FragColor为gl内置变量
+        gl_FragColor = texture2D(mainTexture,v_uv) * v_color;// 使图像结合uv,并叠加上颜色
     }`;
   // 3. 创建片元着色器
   const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);//片元着色器类型gl.FRAGMENT_SHADER
@@ -253,7 +272,12 @@ function main() {
   gl.enableVertexAttribArray(positionAttributeLocation);
   // 4. 将顶点缓冲绑定到当前数据缓冲接口(ARRAY_BUFFER)上，以确保当前ARRAY_BUFFER使用的缓冲是我要的顶点缓冲
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-  gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 16, 0);
+
+  const uvAttributeLocation = gl.getAttribLocation(program, 'a_uv');//获取顶点位置属性在顶点着色器中的位置索引
+  gl.enableVertexAttribArray(uvAttributeLocation);//激活属性
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.vertexAttribPointer(uvAttributeLocation, 2, gl.FLOAT, false, 16, 8);
 
   const colorAttributeLocation = gl.getAttribLocation(program, 'a_color');//获取顶点位置属性在顶点着色器中的位置索引
   gl.enableVertexAttribArray(colorAttributeLocation);//激活属性
@@ -275,6 +299,18 @@ function main() {
    */
   gl.vertexAttribPointer(colorAttributeLocation, 4, gl.UNSIGNED_BYTE, true, 0, 0);
 
+  const texture = gl.createTexture()//创建图像缓存
+  gl.bindTexture(gl.TEXTURE_2D,texture)//绑定当前图像
+  // 设置环绕方式,如果跟默认值一样没有修改的话，这里也可以不设置
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  // 设置纹理过滤方式
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);//翻转y轴
+  
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);//上传纹理图像
   // const vertexColorLocation = gl.getUniformLocation(program, 'u_color');//获取uniform它的索引值
   // // gl.uniform4f(vertexColorLocation, 0, 0, 1, 1);//给uniform赋值 设置为纯蓝色
   // gl.uniform4fv(vertexColorLocation, [0, 0, 1, 1]);//给uniform赋值 设置为纯蓝色 数组形式
